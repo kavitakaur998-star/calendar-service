@@ -10,7 +10,7 @@ function getAccessToken(): string {
   return token;
 }
 
-async function calendlyRequest<T>(
+export async function calendlyRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
