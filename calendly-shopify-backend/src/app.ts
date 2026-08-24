@@ -9,7 +9,10 @@ import {
   TIMEZONE,
 } from "./config.js";
 
-import { availability } from "./availability.js";
+import {
+  availability,
+  availabilityForDateRange,
+} from "./availability.js";
 import { book } from "./booking.js";
 
 import {
@@ -251,6 +254,60 @@ app.get("/api/availability", async (req, res) => {
     );
   }
 });
+
+app.get(
+  "/api/availability-dates",
+  async (req, res) => {
+    const type = req.query.appointmentType;
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+
+    if (!isAppointmentType(type)) {
+      return err(
+        res,
+        400,
+        "INVALID_APPOINTMENT_TYPE",
+        "appointmentType must be virtual, atelier, fitting, or fitting_studio.",
+      );
+    }
+
+    if (
+      typeof startDate !== "string" ||
+      typeof endDate !== "string" ||
+      !isDate(startDate) ||
+      !isDate(endDate)
+    ) {
+      return err(
+        res,
+        400,
+        "INVALID_DATE_RANGE",
+        "startDate and endDate must use YYYY-MM-DD.",
+      );
+    }
+
+    try {
+      res.json(
+        await availabilityForDateRange(
+          type,
+          startDate,
+          endDate,
+        ),
+      );
+    } catch (e) {
+      console.error(
+        "Availability dates failed:",
+        e,
+      );
+
+      err(
+        res,
+        500,
+        "AVAILABILITY_DATES_FAILED",
+        "Could not retrieve available appointment dates.",
+      );
+    }
+  },
+);
 
 app.post("/api/book", async (req, res) => {
   const b = req.body;
