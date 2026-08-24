@@ -1,4 +1,3 @@
-```typescript
 import {
   calendlyRequest,
   getEventType,
@@ -164,4 +163,4 @@ export async function availabilityForDateRange(
     availableDates,
   };
 }
-```
+
