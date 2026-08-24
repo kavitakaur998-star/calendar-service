@@ -1,3 +1,4 @@
+
 import {
   calendlyRequest,
   getEventType,
@@ -29,10 +30,8 @@ export async function availability(
   type: AppointmentType,
   date: string,
 ) {
-  // Find the actual Calendly event type
   const eventType = await getEventType(type);
 
-  // Create the start/end of the requested day.
   const start = new Date(
     `${date}T00:00:00.000Z`,
   );
@@ -83,51 +82,160 @@ export async function availability(
 /**
  * Get all available dates within a date range.
  *
- * This is used by the calendar to determine which
- * dates should be clickable before the customer
- * selects a specific date.
+ * Requests are made concurrently instead of one
+ * after another. A maximum of 5 Calendly requests
+ * are made at the same time.
  */
 export async function availabilityForDateRange(
   type: AppointmentType,
   startDate: string,
   endDate: string,
 ) {
-  const results: string[] = [];
+  const start = new Date(
+    `${startDate}T00:00:00Z`,
+  );
 
-  const start = new Date(`${startDate}T00:00:00`);
-  const end = new Date(`${endDate}T00:00:00`);
+  const end = new Date(
+    `${endDate}T00:00:00Z`,
+  );
 
-  // Check each date individually using the
-  // existing availability function.
+  // --------------------------------------------------
+  // Build list of dates
+  // --------------------------------------------------
+
+  const dates: string[] = [];
+
   for (
     let current = new Date(start);
     current <= end;
-    current.setDate(current.getDate() + 1)
+    current.setUTCDate(
+      current.getUTCDate() + 1,
+    )
   ) {
-    const date = [
-      current.getFullYear(),
-      String(current.getMonth() + 1).padStart(2, "0"),
-      String(current.getDate()).padStart(2, "0"),
-    ].join("-");
+    dates.push(
+      [
+        current.getUTCFullYear(),
+        String(
+          current.getUTCMonth() + 1,
+        ).padStart(2, "0"),
+        String(
+          current.getUTCDate(),
+        ).padStart(2, "0"),
+      ].join("-"),
+    );
+  }
 
-    try {
-      const result = await availability(
-        type,
-        date,
+  // --------------------------------------------------
+  // Get the Calendly event type ONCE
+  // --------------------------------------------------
+
+  const eventType =
+    await getEventType(type);
+
+  // --------------------------------------------------
+  // Check dates concurrently
+  //
+  // Maximum 5 requests at once.
+  // --------------------------------------------------
+
+  const availableDates: string[] = [];
+
+  const concurrency = 5;
+
+  for (
+    let i = 0;
+    i < dates.length;
+    i += concurrency
+  ) {
+    const batch =
+      dates.slice(
+        i,
+        i + concurrency,
       );
 
-      if (
-        result.success &&
-        result.slots.length > 0
-      ) {
-        results.push(date);
-      }
-    } catch (error) {
-      console.error(
-        `Could not check availability for ${date}:`,
-        error,
+    const results =
+      await Promise.all(
+        batch.map(
+          async (date) => {
+            const dayStart =
+              new Date(
+                `${date}T00:00:00.000Z`,
+              );
+
+            const dayEnd =
+              new Date(
+                dayStart.getTime() +
+                  24 *
+                    60 *
+                    60 *
+                    1000,
+              );
+
+            try {
+              const data =
+                await calendlyRequest<AvailableTimesResponse>(
+                  "/event_type_available_times",
+                  {
+                    query: {
+                      event_type:
+                        eventType.uri,
+
+                      start_time:
+                        dayStart.toISOString(),
+
+                      end_time:
+                        dayEnd.toISOString(),
+                    },
+                  },
+                );
+
+              const slots =
+                (
+                  data.collection ??
+                  []
+                )
+                  .filter(
+                    (slot) =>
+                      !slot.status ||
+                      slot.status ===
+                        "available",
+                  )
+                  .filter(
+                    (slot) =>
+                      Boolean(
+                        slot.start_time,
+                      ),
+                  );
+
+              return {
+                date,
+                available:
+                  slots.length > 0,
+              };
+            } catch (error) {
+              console.error(
+                `Could not check availability for ${date}:`,
+                error,
+              );
+
+              return {
+                date,
+                available: false,
+              };
+            }
+          },
+        ),
       );
-    }
+
+    results.forEach(
+      (result) => {
+        if (result.available) {
+          availableDates.push(
+            result.date,
+          );
+        }
+      },
+    );
   }
 
   return {
@@ -136,8 +244,6 @@ export async function availabilityForDateRange(
     timezone: TIMEZONE,
     startDate,
     endDate,
-    availableDates: results,
+    availableDates,
   };
 }
-
-
