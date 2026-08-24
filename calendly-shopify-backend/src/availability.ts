@@ -92,75 +92,52 @@ export async function availabilityForDateRange(
   startDate: string,
   endDate: string,
 ) {
-  // Find the actual Calendly event type
-  const eventType = await getEventType(type);
+  const results: string[] = [];
 
-  // Start of the requested range
-  const start = new Date(
-    `${startDate}T00:00:00.000Z`,
-  );
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
 
-  // End of the requested range
-  //
-  // We add one day because the end timestamp is
-  // treated as exclusive.
-  const end = new Date(
-    `${endDate}T00:00:00.000Z`,
-  );
+  // Check each date individually using the
+  // existing availability function.
+  for (
+    let current = new Date(start);
+    current <= end;
+    current.setDate(current.getDate() + 1)
+  ) {
+    const date = [
+      current.getFullYear(),
+      String(current.getMonth() + 1).padStart(2, "0"),
+      String(current.getDate()).padStart(2, "0"),
+    ].join("-");
 
-  end.setUTCDate(
-    end.getUTCDate() + 1,
-  );
+    try {
+      const result = await availability(
+        type,
+        date,
+      );
 
-  const data =
-    await calendlyRequest<AvailableTimesResponse>(
-      "/event_type_available_times",
-      {
-        query: {
-          event_type: eventType.uri,
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-        },
-      },
-    );
-
-  const slots = (data.collection ?? [])
-    .filter(
-      (slot) =>
-        !slot.status ||
-        slot.status === "available",
-    )
-    .filter(
-      (slot) => Boolean(slot.start_time),
-    );
-
-  // Convert every available slot into its
-  // YYYY-MM-DD date.
-  const availableDates = [
-    ...new Set(
-      slots.map((slot) => {
-        const date = new Date(
-          slot.start_time!,
-        );
-
-        return date.toLocaleDateString(
-          "en-CA",
-          {
-            timeZone: TIMEZONE,
-          },
-        );
-      }),
-    ),
-  ].sort();
+      if (
+        result.success &&
+        result.slots.length > 0
+      ) {
+        results.push(date);
+      }
+    } catch (error) {
+      console.error(
+        `Could not check availability for ${date}:`,
+        error,
+      );
+    }
+  }
 
   return {
     success: true,
     appointmentType: type,
-    label: appointmentTypes[type].label,
+    timezone: TIMEZONE,
     startDate,
     endDate,
-    timezone: TIMEZONE,
-    availableDates,
+    availableDates: results,
   };
 }
+
 
