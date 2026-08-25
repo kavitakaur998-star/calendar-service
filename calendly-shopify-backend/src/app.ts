@@ -89,7 +89,7 @@ app.post(
     try {
 
       // --------------------------------------------------
-      // Verify Shopify webhook
+      // Verify Shopify webhook HMAC
       // --------------------------------------------------
 
       const hmacHeader =
@@ -141,7 +141,7 @@ app.post(
 
       if (
         received.length !==
-        calculated.length ||
+          calculated.length ||
         !crypto.timingSafeEqual(
           received,
           calculated,
@@ -153,6 +153,7 @@ app.post(
 
         return res.sendStatus(401);
       }
+
 
       // --------------------------------------------------
       // Parse Shopify order
@@ -168,12 +169,12 @@ app.post(
         order.id,
       );
 
+
       // --------------------------------------------------
-      // Find the appointment line item
+      // Find appointment line item
       //
-      // We only care about the appointment-related
-      // properties. Everything else in the Shopify
-      // order is ignored.
+      // We only process orders containing both
+      // Appointment Date and Appointment Time.
       // --------------------------------------------------
 
       const lineItems =
@@ -182,6 +183,7 @@ app.post(
       const appointmentItem =
         lineItems.find(
           (item: any) => {
+
             const properties =
               item.properties || [];
 
@@ -208,14 +210,16 @@ app.post(
           },
         );
 
+
       // --------------------------------------------------
-      // This wasn't an appointment order
+      // Not an appointment order
       //
-      // We acknowledge the webhook so Shopify doesn't
-      // keep retrying it.
+      // Acknowledge the webhook so Shopify does not
+      // repeatedly retry it.
       // --------------------------------------------------
 
       if (!appointmentItem) {
+
         console.log(
           "Paid order does not contain an appointment.",
         );
@@ -227,8 +231,9 @@ app.post(
         });
       }
 
+
       // --------------------------------------------------
-      // Extract ONLY the appointment properties
+      // Extract appointment properties
       // --------------------------------------------------
 
       const properties =
@@ -236,6 +241,7 @@ app.post(
 
       const getProperty =
         (name: string) => {
+
           const property =
             properties.find(
               (item: any) =>
@@ -249,6 +255,7 @@ app.post(
             : "";
         };
 
+
       const appointmentDate =
         getProperty(
           "Appointment Date",
@@ -259,17 +266,15 @@ app.post(
           "Appointment Time",
         );
 
-      // --------------------------------------------------
-      // Determine appointment type
-      //
-      // We use the consultation type already stored
-      // on the Shopify appointment.
-      // --------------------------------------------------
-
       const consultationType =
         getProperty(
           "Consultation Type",
         );
+
+
+      // --------------------------------------------------
+      // Determine appointment type
+      // --------------------------------------------------
 
       let appointmentType:
         | "virtual"
@@ -278,13 +283,16 @@ app.post(
       const consultationLower =
         consultationType.toLowerCase();
 
+
       if (
         consultationLower.includes(
           "virtual",
         )
       ) {
+
         appointmentType =
           "virtual";
+
       } else if (
         consultationLower.includes(
           "atelier",
@@ -296,8 +304,10 @@ app.post(
           "in person",
         )
       ) {
+
         appointmentType =
           "atelier";
+
       } else {
 
         console.error(
@@ -314,16 +324,9 @@ app.post(
         });
       }
 
+
       // --------------------------------------------------
-      // Convert date + time into the ISO datetime
-      // expected by Calendly.
-      //
-      // Shopify gives us something like:
-      //
-      // Appointment Date: 2026-08-29
-      // Appointment Time: 10:00 am
-      //
-      // We need to turn that into a proper ISO time.
+      // Convert Shopify date + time into ISO
       // --------------------------------------------------
 
       const startTime =
@@ -332,13 +335,11 @@ app.post(
           appointmentTime,
         );
 
+
       // --------------------------------------------------
-      // Customer details
+      // Get customer details from Shopify
       //
-      // We use Shopify's order/customer information.
-      //
-      // We DO NOT send the other form properties
-      // to the backend/Calendly.
+      // We do NOT use the other form properties.
       // --------------------------------------------------
 
       const email =
@@ -362,13 +363,14 @@ app.post(
         ).trim();
 
       const name =
-        `${firstName} ${lastName}`
-          .trim();
+        `${firstName} ${lastName}`.trim();
+
 
       if (
         !name ||
         !isEmail(email)
       ) {
+
         console.error(
           "Could not determine customer details.",
         );
@@ -382,20 +384,27 @@ app.post(
         });
       }
 
+
       // --------------------------------------------------
-      // Book the appointment in Calendly
+      // Book appointment in Calendly
       // --------------------------------------------------
 
       console.log(
         "Creating Calendly appointment:",
         {
-          orderId: order.id,
+          orderId:
+            order.id,
+
           appointmentType,
+
           startTime,
+
           name,
+
           email,
         },
       );
+
 
       const result =
         await book({
@@ -405,24 +414,23 @@ app.post(
           startTime,
         });
 
+
       console.log(
         "Calendly appointment created:",
         result,
       );
 
+
       // --------------------------------------------------
-      // Tell Shopify the webhook was successfully handled
+      // Acknowledge Shopify
       // --------------------------------------------------
 
       return res.status(200).json({
         success: true,
         message:
           "Appointment booked successfully.",
-        orderId: order.id,
-        calendlyEventUri:
-          result.calendlyEventUri,
-        inviteeUri:
-          result.inviteeUri,
+        orderId:
+          order.id,
       });
 
     } catch (error) {
@@ -447,8 +455,8 @@ app.post(
 // ==================================================
 // JSON BODY PARSER
 //
-// This comes AFTER the Shopify webhook because the
-// webhook needs the raw body for HMAC verification.
+// IMPORTANT:
+// This comes AFTER the Shopify webhook.
 // ==================================================
 
 app.use(
@@ -482,9 +490,11 @@ const err = (
 app.get(
   "/api/health",
   (_req, res) => {
+
     res.json({
       status: "ok",
     });
+
   },
 );
 
@@ -496,6 +506,7 @@ app.get(
 app.get(
   "/api/calendly-test",
   async (_req, res) => {
+
     try {
 
       const user =
@@ -505,11 +516,14 @@ app.get(
 
       res.json({
         success: true,
+
         message:
           "Calendly connection successful",
+
         user: {
           name:
             user.resource?.name,
+
           email:
             user.resource?.email,
         },
@@ -529,6 +543,7 @@ app.get(
         "Could not connect to Calendly.",
       );
     }
+
   },
 );
 
@@ -559,6 +574,7 @@ app.get(
           }),
         ),
     });
+
   },
 );
 
@@ -587,6 +603,7 @@ app.get(
                 (event) =>
                   event.slug ===
                     appointment.calendlySlug ||
+
                   event.name
                     .trim()
                     .toUpperCase() ===
@@ -594,6 +611,7 @@ app.get(
                       .trim()
                       .toUpperCase(),
               );
+
 
             if (!match) {
 
@@ -611,6 +629,7 @@ app.get(
                   false,
               };
             }
+
 
             return {
               id:
@@ -643,8 +662,10 @@ app.get(
               schedulingUrl:
                 match.scheduling_url,
             };
+
           },
         );
+
 
       res.json({
         eventTypes:
@@ -665,6 +686,7 @@ app.get(
         "Could not retrieve Calendly event types.",
       );
     }
+
   },
 );
 
@@ -684,8 +706,10 @@ app.get(
 
       res.json({
         success: true,
+
         count:
           eventTypes.length,
+
         eventTypes,
       });
 
@@ -703,6 +727,7 @@ app.get(
         "Could not retrieve Calendly event types.",
       );
     }
+
   },
 );
 
@@ -721,6 +746,7 @@ app.get(
     const date =
       req.query.date;
 
+
     if (
       !isAppointmentType(type)
     ) {
@@ -733,6 +759,7 @@ app.get(
       );
     }
 
+
     if (
       !isDate(date)
     ) {
@@ -744,6 +771,7 @@ app.get(
         "date must use YYYY-MM-DD.",
       );
     }
+
 
     try {
 
@@ -768,6 +796,7 @@ app.get(
         "Could not retrieve appointment availability.",
       );
     }
+
   },
 );
 
@@ -789,6 +818,7 @@ app.get(
     const endDate =
       req.query.endDate;
 
+
     if (
       !isAppointmentType(type)
     ) {
@@ -801,12 +831,16 @@ app.get(
       );
     }
 
+
     if (
       typeof startDate !==
         "string" ||
+
       typeof endDate !==
         "string" ||
+
       !isDate(startDate) ||
+
       !isDate(endDate)
     ) {
 
@@ -817,6 +851,7 @@ app.get(
         "startDate and endDate must use YYYY-MM-DD.",
       );
     }
+
 
     try {
 
@@ -842,6 +877,7 @@ app.get(
         "Could not retrieve available appointment dates.",
       );
     }
+
   },
 );
 
@@ -849,7 +885,8 @@ app.get(
 // ==================================================
 // MANUAL BOOKING ENDPOINT
 //
-// Keep this for testing.
+// This is kept for testing.
+// The Shopify customer flow does NOT use this.
 // ==================================================
 
 app.post(
@@ -859,6 +896,7 @@ app.post(
     const b =
       req.body;
 
+
     const keys = [
       "name",
       "email",
@@ -866,20 +904,27 @@ app.post(
       "startTime",
     ];
 
+
     if (
       !b ||
       typeof b !== "object" ||
+
       Object.keys(b).length !==
         4 ||
+
       Object.keys(b).some(
         (x: string) =>
           !keys.includes(x),
       ) ||
+
       !requiredText(b.name) ||
+
       !isEmail(b.email) ||
+
       !isAppointmentType(
         b.appointmentType,
       ) ||
+
       !isIsoDateTime(
         b.startTime,
       )
@@ -892,6 +937,7 @@ app.post(
         "Booking requires only name, email, appointmentType, and startTime.",
       );
     }
+
 
     try {
 
@@ -918,6 +964,7 @@ app.post(
         e,
       );
 
+
       if (
         e instanceof Error &&
         (e as any).code ===
@@ -932,6 +979,7 @@ app.post(
         );
       }
 
+
       err(
         res,
         500,
@@ -939,6 +987,7 @@ app.post(
         "We could not complete the booking. Please try again.",
       );
     }
+
   },
 );
 
@@ -961,6 +1010,7 @@ app.get(
       timezone:
         TIMEZONE,
     });
+
   },
 );
 
@@ -968,15 +1018,15 @@ app.get(
 // ==================================================
 // HELPER
 //
-// Converts the date/time stored in Shopify into
-// a London ISO datetime for Calendly.
+// Converts Shopify's London date/time into the
+// ISO datetime required by Calendly.
 //
 // Example:
 //
 // 2026-08-29
 // 10:00 am
 //
-// → 2026-08-29T10:00:00+01:00
+// -> 2026-08-29T09:00:00.000Z
 // ==================================================
 
 function convertLondonDateTimeToISO(
@@ -991,12 +1041,14 @@ function convertLondonDateTimeToISO(
         /^(\d{1,2}):(\d{2})\s*(am|pm)$/i,
       );
 
+
   if (!match) {
 
     throw new Error(
       `Invalid appointment time: ${time}`,
     );
   }
+
 
   let hour =
     Number(match[1]);
@@ -1006,6 +1058,7 @@ function convertLondonDateTimeToISO(
 
   const period =
     match[3].toLowerCase();
+
 
   if (
     hour < 1 ||
@@ -1019,28 +1072,32 @@ function convertLondonDateTimeToISO(
     );
   }
 
-  if (period === "pm" && hour !== 12) {
+
+  if (
+    period === "pm" &&
+    hour !== 12
+  ) {
     hour += 12;
   }
 
-  if (period === "am" && hour === 12) {
+
+  if (
+    period === "am" &&
+    hour === 12
+  ) {
     hour = 0;
   }
+
 
   const londonTime =
     `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
 
-  // --------------------------------------------------
-  // Europe/London is UTC+1 during British Summer Time
-  // and UTC+0 during GMT.
-  //
-  // Calculate the correct offset for this date.
-  // --------------------------------------------------
 
   const testDate =
     new Date(
       `${londonTime}Z`,
     );
+
 
   const january =
     new Date(
@@ -1051,6 +1108,7 @@ function convertLondonDateTimeToISO(
       ),
     );
 
+
   const july =
     new Date(
       Date.UTC(
@@ -1060,11 +1118,13 @@ function convertLondonDateTimeToISO(
       ),
     );
 
+
   const januaryOffset =
     getUKOffset(january);
 
   const julyOffset =
     getUKOffset(july);
+
 
   const offset =
     Math.max(
@@ -1072,11 +1132,16 @@ function convertLondonDateTimeToISO(
       julyOffset,
     );
 
+
   const utcDate =
     new Date(
       testDate.getTime() -
-        offset * 60 * 60 * 1000,
+        offset *
+          60 *
+          60 *
+          1000,
     );
+
 
   return utcDate.toISOString();
 }
@@ -1089,17 +1154,20 @@ function getUKOffset(
   const year =
     date.getUTCFullYear();
 
+
   const marchLastSunday =
     getLastSunday(
       year,
       2,
     );
 
+
   const octoberLastSunday =
     getLastSunday(
       year,
       9,
     );
+
 
   const summerStart =
     Date.UTC(
@@ -1111,6 +1179,7 @@ function getUKOffset(
       0,
     );
 
+
   const summerEnd =
     Date.UTC(
       year,
@@ -1121,8 +1190,10 @@ function getUKOffset(
       0,
     );
 
+
   const timestamp =
     date.getTime();
+
 
   if (
     timestamp >= summerStart &&
@@ -1130,6 +1201,7 @@ function getUKOffset(
   ) {
     return 1;
   }
+
 
   return 0;
 }
@@ -1149,8 +1221,11 @@ function getLastSunday(
       ),
     );
 
-  return lastDay.getUTCDate() -
-    lastDay.getUTCDay();
+
+  return (
+    lastDay.getUTCDate() -
+    lastDay.getUTCDay()
+  );
 }
 
 
