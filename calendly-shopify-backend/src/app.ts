@@ -87,19 +87,14 @@ app.post(
   }),
   async (req, res) => {
     try {
-
-      // --------------------------------------------------
-      // Verify Shopify webhook HMAC
-      // --------------------------------------------------
+      // ==================================================
+      // VERIFY SHOPIFY WEBHOOK
+      // ==================================================
 
       const hmacHeader =
-        req.headers[
-          "x-shopify-hmac-sha256"
-        ];
+        req.headers["x-shopify-hmac-sha256"];
 
-      if (
-        typeof hmacHeader !== "string"
-      ) {
+      if (typeof hmacHeader !== "string") {
         console.error(
           "Shopify webhook missing HMAC.",
         );
@@ -154,10 +149,9 @@ app.post(
         return res.sendStatus(401);
       }
 
-
-      // --------------------------------------------------
-      // Parse Shopify order
-      // --------------------------------------------------
+      // ==================================================
+      // PARSE SHOPIFY ORDER
+      // ==================================================
 
       const order =
         JSON.parse(
@@ -169,59 +163,45 @@ app.post(
         order.id,
       );
 
-
-      // --------------------------------------------------
-      // Find appointment line item
+      // ==================================================
+      // APPOINTMENT PRODUCT
       //
-      // We only process orders containing both
-      // Appointment Date and Appointment Time.
-      // --------------------------------------------------
+      // This is the Shopify product ID for:
+      // "Begin your bridal journey"
+      // ==================================================
+
+      const APPOINTMENT_PRODUCT_ID =
+        "16261041029507";
+
+      // ==================================================
+      // FIND APPOINTMENT LINE ITEM
+      //
+      // The order can contain other products.
+      // We only care about the appointment product.
+      // ==================================================
 
       const lineItems =
         order.line_items || [];
 
       const appointmentItem =
         lineItems.find(
-          (item: any) => {
-
-            const properties =
-              item.properties || [];
-
-            const hasDate =
-              properties.some(
-                (property: any) =>
-                  property.name ===
-                    "Appointment Date" &&
-                  property.value,
-              );
-
-            const hasTime =
-              properties.some(
-                (property: any) =>
-                  property.name ===
-                    "Appointment Time" &&
-                  property.value,
-              );
-
-            return (
-              hasDate &&
-              hasTime
-            );
-          },
+          (item: any) =>
+            String(
+              item.product_id,
+            ) ===
+            APPOINTMENT_PRODUCT_ID,
         );
 
-
-      // --------------------------------------------------
-      // Not an appointment order
+      // ==================================================
+      // NOT AN APPOINTMENT ORDER
       //
-      // Acknowledge the webhook so Shopify does not
-      // repeatedly retry it.
-      // --------------------------------------------------
+      // Normal dress/product orders are simply ignored.
+      // We still return 200 so Shopify doesn't retry.
+      // ==================================================
 
       if (!appointmentItem) {
-
         console.log(
-          "Paid order does not contain an appointment.",
+          "Paid order does not contain the appointment product. Ignoring.",
         );
 
         return res.status(200).json({
@@ -231,17 +211,26 @@ app.post(
         });
       }
 
+      console.log(
+        "Appointment line item found:",
+        {
+          orderId: order.id,
+          productId:
+            appointmentItem.product_id,
+          variantId:
+            appointmentItem.variant_id,
+        },
+      );
 
-      // --------------------------------------------------
-      // Extract appointment properties
-      // --------------------------------------------------
+      // ==================================================
+      // GET LINE ITEM PROPERTIES
+      // ==================================================
 
       const properties =
         appointmentItem.properties || [];
 
       const getProperty =
         (name: string) => {
-
           const property =
             properties.find(
               (item: any) =>
@@ -254,7 +243,6 @@ app.post(
               ).trim()
             : "";
         };
-
 
       const appointmentDate =
         getProperty(
@@ -271,10 +259,35 @@ app.post(
           "Consultation Type",
         );
 
+      // ==================================================
+      // VALIDATE APPOINTMENT INFORMATION
+      // ==================================================
 
-      // --------------------------------------------------
-      // Determine appointment type
-      // --------------------------------------------------
+      if (
+        !appointmentDate ||
+        !appointmentTime
+      ) {
+        console.error(
+          "Appointment product is missing appointment date/time.",
+          {
+            orderId: order.id,
+            appointmentDate,
+            appointmentTime,
+          },
+        );
+
+        return res.status(400).json({
+          success: false,
+          error:
+            "INVALID_APPOINTMENT",
+          message:
+            "Appointment date and time are missing from the order.",
+        });
+      }
+
+      // ==================================================
+      // DETERMINE APPOINTMENT TYPE
+      // ==================================================
 
       let appointmentType:
         | "virtual"
@@ -283,16 +296,13 @@ app.post(
       const consultationLower =
         consultationType.toLowerCase();
 
-
       if (
         consultationLower.includes(
           "virtual",
         )
       ) {
-
         appointmentType =
           "virtual";
-
       } else if (
         consultationLower.includes(
           "atelier",
@@ -304,12 +314,9 @@ app.post(
           "in person",
         )
       ) {
-
         appointmentType =
           "atelier";
-
       } else {
-
         console.error(
           "Could not determine appointment type:",
           consultationType,
@@ -320,14 +327,13 @@ app.post(
           error:
             "INVALID_APPOINTMENT_TYPE",
           message:
-            "Could not determine the appointment type from the Shopify order.",
+            "Could not determine the appointment type.",
         });
       }
 
-
-      // --------------------------------------------------
-      // Convert Shopify date + time into ISO
-      // --------------------------------------------------
+      // ==================================================
+      // CONVERT DATE + TIME TO ISO
+      // ==================================================
 
       const startTime =
         convertLondonDateTimeToISO(
@@ -335,12 +341,12 @@ app.post(
           appointmentTime,
         );
 
-
-      // --------------------------------------------------
-      // Get customer details from Shopify
+      // ==================================================
+      // CUSTOMER DETAILS
       //
+      // These come from Shopify's order.
       // We do NOT use the other form properties.
-      // --------------------------------------------------
+      // ==================================================
 
       const email =
         String(
@@ -365,14 +371,15 @@ app.post(
       const name =
         `${firstName} ${lastName}`.trim();
 
-
       if (
         !name ||
         !isEmail(email)
       ) {
-
         console.error(
           "Could not determine customer details.",
+          {
+            orderId: order.id,
+          },
         );
 
         return res.status(400).json({
@@ -384,27 +391,22 @@ app.post(
         });
       }
 
-
-      // --------------------------------------------------
-      // Book appointment in Calendly
-      // --------------------------------------------------
+      // ==================================================
+      // BOOK CALENDLY APPOINTMENT
+      // ==================================================
 
       console.log(
         "Creating Calendly appointment:",
         {
-          orderId:
-            order.id,
-
+          orderId: order.id,
           appointmentType,
-
+          appointmentDate,
+          appointmentTime,
           startTime,
-
           name,
-
           email,
         },
       );
-
 
       const result =
         await book({
@@ -414,27 +416,27 @@ app.post(
           startTime,
         });
 
+      // ==================================================
+      // SUCCESS
+      // ==================================================
 
       console.log(
         "Calendly appointment created:",
         result,
       );
 
-
-      // --------------------------------------------------
-      // Acknowledge Shopify
-      // --------------------------------------------------
-
       return res.status(200).json({
         success: true,
         message:
           "Appointment booked successfully.",
-        orderId:
-          order.id,
+        orderId: order.id,
+        calendlyEventUri:
+          result.calendlyEventUri,
+        inviteeUri:
+          result.inviteeUri,
       });
 
     } catch (error) {
-
       console.error(
         "Shopify paid-order webhook failed:",
         error,
@@ -450,7 +452,6 @@ app.post(
     }
   },
 );
-
 
 // ==================================================
 // JSON BODY PARSER
