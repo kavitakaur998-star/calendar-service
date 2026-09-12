@@ -276,20 +276,28 @@ app.post(
           "Consultation Type",
         );
 
+      const appointmentTimezone =
+  getProperty(
+    "Appointment Timezone",
+  );
+
+
       // ==================================================
       // VALIDATE APPOINTMENT INFORMATION
       // ==================================================
 
       if (
         !appointmentDate ||
-        !appointmentTime
+        !appointmentTime ||
+        !appointmentTimezone
       ) {
         console.error(
-          "Appointment product is missing appointment date/time.",
+          "Appointment product is missing appointment date/time/timezone.",
           {
             orderId: order.id,
             appointmentDate,
             appointmentTime,
+            appointmentTimezone
           },
         );
 
@@ -429,18 +437,19 @@ app.post(
       // BOOK CALENDLY APPOINTMENT
       // ==================================================
 
-      console.log(
-        "Creating Calendly appointment:",
-        {
-          orderId: order.id,
-          appointmentType,
-          appointmentDate,
-          appointmentTime,
-          startTime,
-          name,
-          email,
-        },
-      );
+    console.log(
+  "Creating Calendly appointment:",
+  {
+    orderId: order.id,
+    appointmentType,
+    appointmentDate,
+    appointmentTime,
+    appointmentTimezone,
+    startTime,
+    name,
+    email,
+  },
+);
 
       const result =
         await book({
@@ -448,6 +457,7 @@ app.post(
           email,
           appointmentType,
           startTime,
+          timezone: appointmentTimezone,
         });
 
       // ==================================================
