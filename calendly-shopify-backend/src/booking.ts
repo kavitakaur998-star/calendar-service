@@ -29,26 +29,29 @@ export async function book(input: {
   );
 
   try {
-    const data =
-      await calendlyRequest<{
-        resource?: {
-          uri?: string;
-          event?: string;
-          status?: string;
-          start_time?: string;
-        };
-      }>("/invitees", {
-        method: "POST",
-        body: {
-          event_type: eventType.uri,
-          start_time: input.startTime,
-          invitee: {
-            name: input.name,
-            email: input.email,
-            timezone: input.timezone,
-          },
-        },
-      });
+ const data =
+  await calendlyRequest<{
+    resource?: {
+      uri?: string;
+      event?: string;
+      status?: string;
+      start_time?: string;
+    };
+  }>("/invitees", {
+    method: "POST",
+    body: {
+      event_type: eventType.uri,
+      start_time: input.startTime,
+      invitee: {
+        name: input.name,
+        email: input.email,
+        timezone: input.timezone,
+      },
+      location: {
+        kind: "google_conference",
+      },
+    },
+  });
 
     console.log(
       "Calendly booking response:",
