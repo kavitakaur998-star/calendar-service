@@ -169,7 +169,7 @@ app.post(
       // We identify appointment products by their
       // title/name rather than a hard-coded product ID.
       //
-      // Case-insensitive, so all of these work:
+      // Case-insensitive:
       // "Virtual Appointment"
       // "VIRTUAL APPOINTMENT"
       // "virtual appointment"
@@ -192,12 +192,8 @@ app.post(
               ).toLowerCase();
 
             return (
-              title.includes(
-                "appointment",
-              ) ||
-              name.includes(
-                "appointment",
-              )
+              title.includes("appointment") ||
+              name.includes("appointment")
             );
           },
         );
@@ -205,8 +201,12 @@ app.post(
       // ==================================================
       // NOT AN APPOINTMENT ORDER
       //
-      // Normal dress/product orders are simply ignored.
-      // We still return 200 so Shopify doesn't retry.
+      // This webhook receives ALL paid orders.
+      // Normal dress/product orders are therefore ignored.
+      //
+      // We return 200 because Shopify only needs to know
+      // that we successfully received and handled the
+      // webhook. Returning 200 prevents unnecessary retries.
       // ==================================================
 
       if (!appointmentItem) {
@@ -349,14 +349,46 @@ app.post(
       }
 
       // ==================================================
-      // CONVERT DATE + TIME TO ISO
+      // VALIDATE APPOINTMENT TIME
+      //
+      // The frontend already stores Appointment Time as
+      // a complete ISO timestamp, e.g.:
+      //
+      // 2026-09-26T10:00:00Z
+      //
+      // This represents 11:00 London time while the UK
+      // is on BST.
+      //
+      // DO NOT run this through
+      // convertLondonDateTimeToISO().
       // ==================================================
 
-      const startTime =
-        convertLondonDateTimeToISO(
-          appointmentDate,
+      const parsedAppointmentTime =
+        new Date(
           appointmentTime,
         );
+
+      if (
+        Number.isNaN(
+          parsedAppointmentTime.getTime(),
+        )
+      ) {
+        console.error(
+          "Invalid appointment time:",
+          appointmentTime,
+        );
+
+        return res.status(400).json({
+          success: false,
+          error:
+            "INVALID_APPOINTMENT_TIME",
+          message:
+            `Invalid appointment time: ${appointmentTime}`,
+        });
+      }
+
+      const startTime =
+        parsedAppointmentTime.toISOString();
 
       // ==================================================
       // CUSTOMER DETAILS
