@@ -160,7 +160,7 @@ app.post(
 
       console.log(
         "Received Shopify paid order:",
-        order.id,
+        order,
       );
 
       // ==================================================
