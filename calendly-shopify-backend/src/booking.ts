@@ -16,19 +16,16 @@ export async function book(input: {
   const eventType =
     await getEventType(input.appointmentType);
 
-  console.log(
-    "Sending booking to Calendly:",
-    {
-      eventType: eventType.uri,
-      eventTypeName: eventType.name,
-      startTime: input.startTime,
-      name: input.name,
-      email: input.email,
-      timezone: input.timezone,
-    },
-  );
-
   try {
+    const isVirtual =
+  eventType.name.toUpperCase().includes("VIRTUAL");
+    const calendlyLocation = isVirtual
+  ? {
+      kind: "google_conference",
+    }
+  : {
+      kind: "physical",
+    };
  const data =
   await calendlyRequest<{
     resource?: {
@@ -47,16 +44,10 @@ export async function book(input: {
         email: input.email,
         timezone: input.timezone,
       },
-      location: {
-        kind: "google_conference",
-      },
+   location: calendlyLocation,
     },
   });
 
-    console.log(
-      "Calendly booking response:",
-      JSON.stringify(data, null, 2),
-    );
 
     return {
       success: true,
