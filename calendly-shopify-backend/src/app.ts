@@ -164,20 +164,15 @@ app.post(
       );
 
       // ==================================================
-      // APPOINTMENT PRODUCT
-      //
-      // This is the Shopify product ID for:
-      // "Begin your bridal journey"
-      // ==================================================
-
-      const APPOINTMENT_PRODUCT_ID =
-        "16261041029507";
-
-      // ==================================================
       // FIND APPOINTMENT LINE ITEM
       //
-      // The order can contain other products.
-      // We only care about the appointment product.
+      // We identify appointment products by their
+      // title/name rather than a hard-coded product ID.
+      //
+      // Case-insensitive, so all of these work:
+      // "Virtual Appointment"
+      // "VIRTUAL APPOINTMENT"
+      // "virtual appointment"
       // ==================================================
 
       const lineItems =
@@ -185,11 +180,26 @@ app.post(
 
       const appointmentItem =
         lineItems.find(
-          (item: any) =>
-            String(
-              item.product_id,
-            ) ===
-            APPOINTMENT_PRODUCT_ID,
+          (item: any) => {
+            const title =
+              String(
+                item.title || "",
+              ).toLowerCase();
+
+            const name =
+              String(
+                item.name || "",
+              ).toLowerCase();
+
+            return (
+              title.includes(
+                "appointment",
+              ) ||
+              name.includes(
+                "appointment",
+              )
+            );
+          },
         );
 
       // ==================================================
@@ -201,7 +211,7 @@ app.post(
 
       if (!appointmentItem) {
         console.log(
-          "Paid order does not contain the appointment product. Ignoring.",
+          "Paid order does not contain an appointment product. Ignoring.",
         );
 
         return res.status(200).json({
@@ -219,6 +229,10 @@ app.post(
             appointmentItem.product_id,
           variantId:
             appointmentItem.variant_id,
+          title:
+            appointmentItem.title,
+          name:
+            appointmentItem.name,
         },
       );
 
@@ -234,7 +248,10 @@ app.post(
           const property =
             properties.find(
               (item: any) =>
-                item.name === name,
+                String(
+                  item.name || "",
+                ).toLowerCase() ===
+                name.toLowerCase(),
             );
 
           return property?.value
@@ -452,6 +469,7 @@ app.post(
     }
   },
 );
+
 
 // ==================================================
 // JSON BODY PARSER
