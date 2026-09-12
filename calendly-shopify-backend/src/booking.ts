@@ -16,6 +16,18 @@ export async function book(input: {
   const eventType =
     await getEventType(input.appointmentType);
 
+  console.log(
+    "Sending booking to Calendly:",
+    {
+      eventType: eventType.uri,
+      eventTypeName: eventType.name,
+      startTime: input.startTime,
+      name: input.name,
+      email: input.email,
+      timezone: input.timezone,
+    },
+  );
+
   try {
     const data =
       await calendlyRequest<{
@@ -37,6 +49,11 @@ export async function book(input: {
           },
         },
       });
+
+    console.log(
+      "Calendly booking response:",
+      JSON.stringify(data, null, 2),
+    );
 
     return {
       success: true,
@@ -63,10 +80,16 @@ export async function book(input: {
                 input.appointmentType,
               eventTypeUri:
                 eventType.uri,
+              eventTypeName:
+                eventType.name,
               startTime:
                 input.startTime,
-              name: input.name,
-              email: input.email,
+              name:
+                input.name,
+              email:
+                input.email,
+              timezone:
+                input.timezone,
             }
           : e,
         null,
