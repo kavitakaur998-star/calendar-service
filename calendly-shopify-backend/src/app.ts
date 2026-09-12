@@ -158,11 +158,6 @@ app.post(
           req.body.toString("utf8"),
         );
 
-      console.log(
-        "Received Shopify paid order:",
-        order,
-      );
-
       // ==================================================
       // FIND APPOINTMENT LINE ITEM
       //
@@ -210,9 +205,7 @@ app.post(
       // ==================================================
 
       if (!appointmentItem) {
-        console.log(
-          "Paid order does not contain an appointment product. Ignoring.",
-        );
+
 
         return res.status(200).json({
           success: true,
@@ -221,20 +214,6 @@ app.post(
         });
       }
 
-      console.log(
-        "Appointment line item found:",
-        {
-          orderId: order.id,
-          productId:
-            appointmentItem.product_id,
-          variantId:
-            appointmentItem.variant_id,
-          title:
-            appointmentItem.title,
-          name:
-            appointmentItem.name,
-        },
-      );
 
       // ==================================================
       // GET LINE ITEM PROPERTIES
@@ -437,20 +416,6 @@ app.post(
       // BOOK CALENDLY APPOINTMENT
       // ==================================================
 
-    console.log(
-  "Creating Calendly appointment:",
-  {
-    orderId: order.id,
-    appointmentType,
-    appointmentDate,
-    appointmentTime,
-    appointmentTimezone,
-    startTime,
-    name,
-    email,
-  },
-);
-
       const result =
         await book({
           name,
@@ -459,15 +424,6 @@ app.post(
           startTime,
           timezone: appointmentTimezone,
         });
-
-      // ==================================================
-      // SUCCESS
-      // ==================================================
-
-      console.log(
-        "Calendly appointment created:",
-        result,
-      );
 
       return res.status(200).json({
         success: true,
