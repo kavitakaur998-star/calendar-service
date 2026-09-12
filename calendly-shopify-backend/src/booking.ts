@@ -11,6 +11,7 @@ export async function book(input: {
   startTime: string;
   name: string;
   email: string;
+  timezone: string;
 }) {
   const eventType =
     await getEventType(input.appointmentType);
@@ -32,6 +33,7 @@ export async function book(input: {
           invitee: {
             name: input.name,
             email: input.email,
+            timezone: input.timezone,
           },
         },
       });
