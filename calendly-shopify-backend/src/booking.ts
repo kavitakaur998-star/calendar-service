@@ -17,15 +17,8 @@ export async function book(input: {
     await getEventType(input.appointmentType);
 
   try {
-    const isVirtual =
-  eventType.name.toUpperCase().includes("VIRTUAL");
-    const calendlyLocation = isVirtual
-  ? {
-      kind: "google_conference",
-    }
-  : {
-      kind: "physical",
-    };
+  const calendlyLocation = eventType.locations[0];
+    
  const data =
   await calendlyRequest<{
     resource?: {
